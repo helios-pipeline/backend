@@ -2,13 +2,25 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import clickhouse_connect
 import logging
-from copy import deepcopy
+from dotenv import load_dotenv
+import os
 
 app = Flask(__name__)
 CORS(app)
 
+load_dotenv()
+app.config['CH_HOST'] = os.getenv('CH_HOST', 'localhost')
+app.config['CH_PORT'] = int(os.getenv('CH_PORT', 8123))
+app.config['CH_USER'] = os.getenv('CH_USER', 'default')
+app.config['CH_PASSWORD'] = os.getenv('CH_PASSWORD', '')
+
 # Create a ClickHouse client
-client = clickhouse_connect.get_client(host='localhost', port=8123)#settings={'stream_results': False})
+client = clickhouse_connect.get_client(
+  host=app.config['CH_HOST'],
+  port=app.config['CH_PORT'],
+  username=app.config['CH_USER'],
+  password=app.config['CH_PASSWORD']
+)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -18,18 +30,20 @@ logger = logging.getLogger(__name__)
 
 @app.route('/api/databases', methods=['GET'])
 def get_databases():
-    def get_db_names(client):
-        return [db['name'] for db in client.query('SHOW DATABASES').named_results()]
+    try:
+      def get_db_names(client):
+          return [db['name'] for db in client.query('SHOW DATABASES').named_results()]
 
-    def get_tables_in_db(client, db_name):
-        return [table['name'] for table in client.query(f'SHOW TABLES FROM {db_name}').named_results()]
+      def get_tables_in_db(client, db_name):
+          return [table['name'] for table in client.query(f'SHOW TABLES FROM {db_name}').named_results()]
 
-    db_table_map = {}
-    for db in get_db_names(client):
-        db_table_map[db] = get_tables_in_db(client, db)
+      db_table_map = {}
+      for db in get_db_names(client):
+          db_table_map[db] = get_tables_in_db(client, db)
 
-    return jsonify(db_table_map)
-
+      return jsonify(db_table_map)
+    except Exception as e:
+      return jsonify({ 'error': str(e)}), 400
     
 # change from /api/query to /api/select?
 @app.route('/api/query', methods=['POST'])
@@ -37,7 +51,7 @@ def query():
     try:
         query_string = request.json.get('query')
         result = client.query(query_string) # returns a QueryReult Object
-        # data = [dict(zip(result.column_names, row)) for row in result.result_rows]
+    
         data = [*result.named_results()]
         response = {
             "metadata": {
