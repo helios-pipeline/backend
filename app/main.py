@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import clickhouse_connect
 import logging
-from dotenv import load_dotenv
 import os
+
+import clickhouse_connect
+from dotenv import load_dotenv
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 
 def create_app(config=None, client=None):
@@ -13,7 +14,7 @@ def create_app(config=None, client=None):
 
     load_dotenv()
     app.config["CH_HOST"] = os.getenv("CH_HOST", "localhost")
-    app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8123))
+    app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8124))
     app.config["CH_USER"] = os.getenv("CH_USER", "default")
     app.config["CH_PASSWORD"] = os.getenv("CH_PASSWORD", "")
 
