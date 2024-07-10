@@ -7,6 +7,7 @@ readme = "README.md"
 
 [tool.poetry.scripts]
 start-db = "scripts:start_db"
+build-image = "scripts:build_image"
 
 [tool.poetry.dependencies]
 python = "^3.12"
