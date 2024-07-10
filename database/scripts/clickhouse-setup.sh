@@ -5,7 +5,8 @@ username="gcochran"
 docker pull ${username}/my-clickhouse-image:dev
 
 # Run the Docker container
-docker run -d --name my-clickhouse-container -p 8123:8123 -p 9000:9000 ${username}/my-clickhouse-image:dev
+# Map localhost:8124 to container port 8123
+docker run -d --name my-clickhouse-container -p 8124:8123 -p 9001:9000 ${username}/my-clickhouse-image:dev
 
 # Wait a few seconds for the container to start up
 sleep 5
