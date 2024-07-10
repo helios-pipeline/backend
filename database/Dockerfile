@@ -5,6 +5,5 @@ FROM clickhouse/clickhouse-server:latest
 COPY init-db.sql /docker-entrypoint-initdb.d/
 
 # Expose the ClickHouse ports
-# default ports already used by tests/ CH docker instance
 EXPOSE 8123 9000
 
