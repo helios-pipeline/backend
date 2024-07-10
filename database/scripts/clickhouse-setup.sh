@@ -1,6 +1,8 @@
 #!/bin/bash
 username="gcochran"
 
+sh database/scripts/kill-docker.sh
+
 # Pull the Docker image
 docker pull ${username}/my-clickhouse-image:dev
 
