@@ -7,7 +7,9 @@ readme = "README.md"
 
 [tool.poetry.scripts]
 start-db = "scripts:start_db"
+start-db-mac = "scripts:start_db_mac"
 build-image = "scripts:build_image"
+build-image-mac = "scripts:build_image_mac"
 dev = "scripts:run_dev"
 
 [tool.poetry.dependencies]

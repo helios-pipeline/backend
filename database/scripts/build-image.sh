@@ -1,10 +1,12 @@
 #!/bin/bash
 
-username="gcochran"
+source database/scripts/global-vars.sh
 
 sh database/scripts/kill-docker.sh
 
-docker build -t my-clickhouse-image database/.
+docker buildx build --platform=linux/amd64 -t helios-clickhouse-amd database/.
 docker login
-docker tag my-clickhouse-image ${username}/my-clickhouse-image:dev
-docker push ${username}/my-clickhouse-image:dev
+docker tag helios-clickhouse-amd ${USERNAME}/helios-clickhouse-amd:dev
+docker push ${USERNAME}/helios-clickhouse-amd:dev
+
+
