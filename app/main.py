@@ -14,7 +14,7 @@ def create_app(config=None, client=None):
 
     load_dotenv()
     app.config["CH_HOST"] = os.getenv("CH_HOST", "localhost")
-    app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8124))
+    app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8123))
     app.config["CH_USER"] = os.getenv("CH_USER", "default")
     app.config["CH_PASSWORD"] = os.getenv("CH_PASSWORD", "")
 

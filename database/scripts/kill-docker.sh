@@ -1,6 +1,7 @@
 #!/bin/bash
-username="gcochran"
+source database/scripts/global-vars.sh
 
-docker stop my-clickhouse-container
-docker rm my-clickhouse-container
-docker rmi ${username}/my-clickhouse-image:dev
+docker stop helios-clickhouse-container
+docker rm helios-clickhouse-container
+docker rmi ${USERNAME}/helios-clickhouse-arm:dev || true
+# docker rmi ${USERNAME}/helios-clickhouse-amd:dev || true
