@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source database/scripts/global-vars.sh
+. database/scripts/global-vars.sh
 
 sh database/scripts/kill-docker.sh
 
