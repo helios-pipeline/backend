@@ -11,6 +11,7 @@ start-db-mac = "scripts:start_db_mac"
 build-image = "scripts:build_image"
 build-image-mac = "scripts:build_image_mac"
 dev = "scripts:run_dev"
+generate = "scripts:generate_data"
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -18,6 +19,8 @@ clickhouse-connect = "^0.7.16"
 python-dotenv = "^1.0.1"
 flask = "^3.0.3"
 flask-cors = "^4.0.1"
+boto3 = "^1.34.143"
+faker = "^26.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
