@@ -68,15 +68,14 @@ def send_to_kinesis(stream_name, data):
 
 
 def stream_data():
-    click_rate = 10  # clicks per second
+    click_rate = 2  # clicks per second
     purchase_rate = 1  # purchases per minute
     purchase_interval = 60 / purchase_rate  # time interval between purchases
     last_purchase_time = time.time()
-    count = 0
 
     try:
-        # while True:
-        while count < 10:
+        while True:
+        # while count < 2:
             current_time = time.time()
             # Generate user ID
             user_id = fake.random_int(min=1, max=1000)
@@ -85,7 +84,6 @@ def stream_data():
             send_to_kinesis("MyKinesisDataStream", clickstream_data)
             print("Clickstream data:", json.dumps(clickstream_data))
             time.sleep(1 / click_rate)
-            count += 1
 
     except KeyboardInterrupt:
         print("Script terminated by user.")

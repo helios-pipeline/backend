@@ -1,5 +1,8 @@
+import base64
 import logging
+import json
 import os
+from time import sleep
 import boto3
 
 import clickhouse_connect
@@ -109,6 +112,59 @@ def create_app(config=None, client=None):
             })
         except Exception as e:
             return jsonify({"Authentication Error": str(e)}), 400
+
+    @app.route("/api/kinesis-sample", methods=["POST"])
+    def kinesis_sample():
+        try:
+            if global_boto3_session is None:
+                return jsonify({'Authentication Error': 'User had not been authenticated'}), 401
+
+            data = request.json
+            stream_name = data.get("streamName")
+
+            # Use boto3 session to access Kinesis 
+            # Using kinesis client to get specific shard interator
+            kinesis_client = global_boto3_session.client('kinesis')
+            shard_iterator = kinesis_client.get_shard_iterator(
+                StreamName=stream_name,
+                ShardId='shardId-000000000000',  # Assume single shard for simplicity
+                ShardIteratorType='LATEST'
+            )['ShardIterator']
+            
+            # Trying for 10 seconds to grab a kinesis stream record using kinesis client
+            # If event record exists, decode to JSON
+            # Use event record and clickhouse client to infer schema
+            # Return same event and inferrerd schema
+            seconds_to_try = 5
+            times_per_second = 3
+            count = 0
+            while count < times_per_second * seconds_to_try:
+                records = kinesis_client.get_records(
+                  ShardIterator=shard_iterator,
+                  Limit=1
+                )
+                if records['Records']:
+                    record_data = records['Records'][0]['Data'].decode('utf-8')
+                    
+                    res = client.query(f"DESC format(JSONEachRow, '{record_data}');")
+                    jsonify({"1": res.result_rows})
+
+                    schemaArray = []
+                    for row in res.result_rows:
+                        schema = {
+                            'name': row[0],
+                            'type': row[1]
+                        }
+                        schemaArray.append(schema)
+
+                    return jsonify({"sampleEvent": json.loads(record_data), "inferredSchema": schemaArray})
+
+                count += 1
+                sleep(1/times_per_second)
+            return jsonify({"Unsucessful": "could not find any records"})
+          
+        except Exception as e:
+            return jsonify({"Kinesis Sample Route Error": str(e)}), 400
 
     return app
 
