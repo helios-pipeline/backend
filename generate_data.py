@@ -11,8 +11,12 @@ fake = Faker()
 
 # Initialize the Kinesis client with the correct region
 
+# root_session = boto3.Session(
+#     aws_access_key_id="", aws_secret_access_key=""
+# )  # Pass in credentials
 root_session = boto3.Session(
-    aws_access_key_id="", aws_secret_access_key=""
+    aws_access_key_id="",
+    aws_secret_access_key="",
 )  # Pass in credentials
 
 
@@ -29,14 +33,15 @@ fake = Faker()
 
 def generate_clickstream_data(user_id):
     # Generate a timestamp based on the current time in UTC
-    event_timestamp = datetime.now(timezone.utc)
+    # event_timestamp = datetime.now(timezone.utc)
 
     return {
         "user_id": user_id,
         "session_id": fake.uuid4(),
         "event_type": random.choice(["click", "view", "purchase", "add_to_cart"]),
         # "event_timestamp": event_timestamp.isoformat(),
-        "event_timestamp": event_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        # "event_timestamp": event_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "event_timestamp": 1,
         "page_url": fake.url(),
         "product_id": fake.random_int(min=1, max=100),
     }
