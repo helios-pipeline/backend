@@ -1,11 +1,13 @@
 import logging
 import os
+import boto3
 
 import clickhouse_connect
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
+global_boto3_session = None
 
 def create_app(config=None, client=None):
     print(f"Creating app with config: {config}")
@@ -80,6 +82,33 @@ def create_app(config=None, client=None):
             return jsonify(response)
         except Exception as e:
             return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/authenticate", methods=["POST"])
+    def authenticate():
+        global global_boto3_session
+        
+        try:
+            data = request.json
+            access_key = data.get("accessKey")
+            secret_key = data.get("secretKey")
+
+            # Use boto3 to validate credentials and list Kinesis streams
+            global_boto3_session = boto3.Session(
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key
+            )
+            kinesis_client = global_boto3_session.client('kinesis')
+            
+            # List Kinesis streams
+            response = kinesis_client.list_streams()
+            stream_names = response.get('StreamNames', [])
+
+            return jsonify({
+                "authenticated": True,
+                "streamNames": stream_names
+            })
+        except Exception as e:
+            return jsonify({"Authentication Error": str(e)}), 400
 
     return app
 
