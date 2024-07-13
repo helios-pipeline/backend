@@ -3,6 +3,7 @@ import logging
 import json
 import os
 from time import sleep
+import uuid
 import boto3
 
 import clickhouse_connect
@@ -98,7 +99,8 @@ def create_app(config=None, client=None):
             # Use boto3 to validate credentials and list Kinesis streams
             global_boto3_session = boto3.Session(
                 aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key
+                aws_secret_access_key=secret_key,
+                region_name='us-west-1'
             )
             kinesis_client = global_boto3_session.client('kinesis')
             
@@ -165,7 +167,47 @@ def create_app(config=None, client=None):
           
         except Exception as e:
             return jsonify({"Kinesis Sample Route Error": str(e)}), 400
+    
+    @app.route("/api/create-table", methods=["POST"])
+    def create_table():
+        try:
+            if global_boto3_session is None:
+                return jsonify({'Authentication Error': 'User had not been authenticated'}), 401
+            
+            data = request.json
+            stream_name = data.get("streamName")
+            table_name = data.get("tableName")
+            database_name = data.get('databaseName', 'default')
+            schema = data.get("schema")
+            columns = ", ".join([f'{col["name"]} {col["type"]}' for col in schema])
 
+            # Primary key is set to first column as default
+            create_table_query = f"CREATE TABLE {database_name}.{table_name} "\
+                                 f"({columns}"\
+                                 f") ENGINE = MergeTree()"\
+                                 f" PRIMARY KEY {schema[0]["name"]}"
+            
+            query = create_table_query.strip()
+
+            client.command(query)
+
+            table_uuid = str(uuid.uuid4())
+
+            # Get stream ARN
+            kinesis_client = global_boto3_session.client('kinesis')
+            stream_description = kinesis_client.describe_stream(StreamName=stream_name)
+            stream_arn = stream_description['StreamDescription']['StreamARN']
+
+            # TODO: Store mapping in DynamoDB
+            return jsonify({
+                "success": True,
+                "create_table_query": query,
+                "message": "Table created in Clickhouse. TODO: Insert tableUUID and streamARN into dynamodb",
+                "tableUUID": table_uuid,
+                "streamARN": stream_arn
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
     return app
 
 
