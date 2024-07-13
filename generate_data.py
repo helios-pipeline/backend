@@ -2,22 +2,12 @@ import json
 import random
 import time
 from datetime import datetime
-
 import boto3
 from faker import Faker
 
 fake = Faker()
 
-
-# Initialize the Kinesis client with the correct region
-
-# root_session = boto3.Session(
-#     aws_access_key_id="", aws_secret_access_key=""
-# )  # Pass in credentials
-root_session = boto3.Session(
-    aws_access_key_id="",
-    aws_secret_access_key="",
-)  # Pass in credentials
+root_session = boto3.Session(profile_name='capstone-team4')  # Set profile
 
 
 kinesis_client = root_session.client(
