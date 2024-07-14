@@ -175,10 +175,20 @@ def create_app(config=None, client=None):
                 return jsonify({'Authentication Error': 'User had not been authenticated'}), 401
             
             data = request.json
-            stream_name = data.get("streamName")
-            table_name = data.get("tableName")
+            
+            stream_name = data["streamName"]
+            table_name = data["tableName"]
             database_name = data.get('databaseName', 'default')
-            schema = data.get("schema")
+            schema = data["schema"]
+
+            # Validate schema
+            if not isinstance(schema, list) or len(schema) == 0:
+                return jsonify({"error": "Invalid schema format"}), 400
+
+            for col in schema:
+                if not isinstance(col, dict) or "name" not in col or "type" not in col:
+                    return jsonify({"error": "Invalid schema format"}), 400
+            
             columns = ", ".join([f'{col["name"]} {col["type"]}' for col in schema])
 
             # Primary key is set to first column as default
