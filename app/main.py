@@ -5,6 +5,7 @@ import os
 from time import sleep
 import uuid
 import boto3
+from boto3.dynamodb.conditions import Key
 
 import clickhouse_connect
 from dotenv import load_dotenv
@@ -148,8 +149,10 @@ def create_app(config=None, client=None):
                 if records['Records']:
                     record_data = records['Records'][0]['Data'].decode('utf-8')
                     
+                    client.command("SET schema_inference_make_columns_nullable = 0;")
+                    client.command("SET input_format_null_as_default = 0;")
                     res = client.query(f"DESC format(JSONEachRow, '{record_data}');")
-                    jsonify({"1": res.result_rows})
+                    # jsonify({"1": res.result_rows})
 
                     schemaArray = []
                     for row in res.result_rows:
@@ -199,21 +202,47 @@ def create_app(config=None, client=None):
             
             query = create_table_query.strip()
 
-            client.command(query)
+            print('create table query: ', query)
 
-            table_uuid = str(uuid.uuid4())
+            client.command(query)
+            
+            # getting table_id from clickhouse
+            def get_table_id(table_name):
+                res = client.query(f"""
+                    SELECT uuid
+                    FROM system.tables
+                    WHERE database = 'default'
+                    AND name = '{table_name}'
+                    """)
+                return res.first_row[0]
+            
+            
+            # Adding table_id + stream_arn to dynamodb
+            def add_table_stream_dynamodb(stream_arn, ch_table_id):
+                dynamo_client = global_boto3_session.resource('dynamodb')
+                dynamo_table = dynamo_client.Table('tables_streams')
+                dynamo_table.put_item(
+                    Item={
+                        "stream_id": stream_arn,
+                        "table_id": str(ch_table_id)
+                    }
+                )
 
             # Get stream ARN
             kinesis_client = global_boto3_session.client('kinesis')
             stream_description = kinesis_client.describe_stream(StreamName=stream_name)
             stream_arn = stream_description['StreamDescription']['StreamARN']
 
-            # TODO: Store mapping in DynamoDB
+            # Add table_id and stream_arn to dynamodb
+            table_id = get_table_id(table_name)
+            add_table_stream_dynamodb(stream_arn, table_id)
+
+            # print('create table query: ', query)
             return jsonify({
                 "success": True,
                 "create_table_query": query,
                 "message": "Table created in Clickhouse. TODO: Insert tableUUID and streamARN into dynamodb",
-                "tableUUID": table_uuid,
+                "tableUUID": table_id,
                 "streamARN": stream_arn
             })
         except Exception as e:
