@@ -247,6 +247,26 @@ def create_app(config=None, client=None):
             })
         except Exception as e:
             return jsonify({"error": str(e)}), 400
+        
+    @app.route("/api/select-query", methods=["POST"])
+    def select_query():
+        try:
+            query_string = request.json.get('query')
+            result = client.query(query_string)
+            data = [*result.named_results()]
+            print(data)
+            response = {
+                "metadata": {
+                    "query": query_string,
+                    "row_count": int(result.summary['read_rows']),
+                    "column_names": result.column_names,
+                    "column_types": [t.base_type for t in result.column_types],
+                },
+                "data": data
+            }
+            return jsonify(response)
+        except Exception as e:
+            return jsonify({ 'error': str(e)}), 400
     return app
 
 
