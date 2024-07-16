@@ -50,6 +50,16 @@ def generate_purchase_history(user_id):
         "amount": round(random.uniform(5.0, 500.0), 2),
     }
 
+def generate_user_profile_data(user_id):
+    return {
+        "user_id": user_id,
+        "name": fake.name(),
+        "email": fake.email(),
+        "age": fake.random_int(min=18, max=80),
+        "country": fake.country(),
+        "registration_timestamp": int(time.time()),
+    }
+
 
 def send_to_kinesis(stream_name, data):
     kinesis_client.put_record(
@@ -71,8 +81,13 @@ def stream_data():
             user_id = fake.random_int(min=1, max=1000)
             # Generate clickstream data
             clickstream_data = generate_clickstream_data(user_id)
+            clickstream_data2 = generate_user_profile_data(user_id)
+
             send_to_kinesis("MyKinesisDataStream", clickstream_data)
-            print("Clickstream data:", json.dumps(clickstream_data))
+            send_to_kinesis("SecondDataStream", clickstream_data2)
+
+            print("MyKinesisDataStream data:", json.dumps(clickstream_data))
+            print("SecondDataStream data:", json.dumps(clickstream_data2))
             time.sleep(1 / click_rate)
 
     except KeyboardInterrupt:

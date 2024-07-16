@@ -20,7 +20,7 @@ def create_app(config=None, client=None):
     CORS(app)
 
     load_dotenv()
-    app.config["CH_HOST"] = os.getenv("CH_HOST", "localhost")
+    app.config["CH_HOST"] = os.getenv("CH_HOST", "ec2-52-53-199-194.us-west-1.compute.amazonaws.com")
     app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8123))
     app.config["CH_USER"] = os.getenv("CH_USER", "default")
     app.config["CH_PASSWORD"] = os.getenv("CH_PASSWORD", "")
@@ -146,6 +146,8 @@ def create_app(config=None, client=None):
                   ShardIterator=shard_iterator,
                   Limit=1
                 )
+                print('Backend route Records: ', records)
+
                 if records['Records']:
                     record_data = records['Records'][0]['Data'].decode('utf-8')
                     
@@ -221,6 +223,21 @@ def create_app(config=None, client=None):
             def add_table_stream_dynamodb(stream_arn, ch_table_id):
                 dynamo_client = global_boto3_session.resource('dynamodb')
                 dynamo_table = dynamo_client.Table('tables_streams')
+
+                response = dynamo_table.query(
+                    KeyConditionExpression=Key('stream_id').eq(stream_arn)
+                )
+                
+                if len(response['Items']) == 1:
+                    # If the item exists, delete it first
+                    dynamo_table.delete_item(
+                        Key={
+                            "stream_id": stream_arn,
+                            "table_id": response['Items'][0]['table_id']
+                        }
+                    )
+                    print(f"Existing entry for stream_id {stream_arn} deleted.")
+
                 dynamo_table.put_item(
                     Item={
                         "stream_id": stream_arn,
@@ -266,7 +283,9 @@ def create_app(config=None, client=None):
             }
             return jsonify(response)
         except Exception as e:
-            return jsonify({ 'error': str(e)}), 400
+            return jsonify({ 'Error in select_query': str(e)}), 400
+
+
     return app
 
 
