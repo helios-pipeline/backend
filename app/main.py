@@ -20,7 +20,7 @@ def create_app(config=None, client=None):
     CORS(app)
 
     load_dotenv()
-    app.config["CH_HOST"] = os.getenv("CH_HOST", "ec2-52-53-199-194.us-west-1.compute.amazonaws.com")
+    app.config["CH_HOST"] = os.getenv("CH_HOST", "ec2-13-57-48-113.us-west-1.compute.amazonaws.com")
     app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8123))
     app.config["CH_USER"] = os.getenv("CH_USER", "default")
     app.config["CH_PASSWORD"] = os.getenv("CH_PASSWORD", "")
@@ -66,13 +66,22 @@ def create_app(config=None, client=None):
             return jsonify(db_table_map)
         except Exception as e:
             return jsonify({"error": str(e)}), 400
-
-    # change from /api/query to /api/select?
+        
     @app.route("/api/query", methods=["POST"])
     def query():
         try:
             query_string = request.json.get("query")
-            result = client.query(query_string)  # returns a QueryReult Object
+            page = int(request.json.get("page", 1))
+            page_size = int(request.json.get("pageSize", 10))
+
+            offset = (page - 1) * page_size
+
+            paginated_query = f"{query_string} LIMIT {page_size} OFFSET {offset}"
+
+            result = client.query(paginated_query)
+
+            total_count_query = f"SELECT count(*) as total FROM ({query_string})"
+            total_count = client.query(total_count_query).first_row[0]
 
             data = [*result.named_results()]
             response = {
@@ -81,6 +90,10 @@ def create_app(config=None, client=None):
                     "row_count": int(result.summary["read_rows"]),
                     "column_names": result.column_names,
                     "column_types": [t.base_type for t in result.column_types],
+                    "total_count": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": (total_count + page_size - 1) // page_size
                 },
                 "data": data,
             }
@@ -97,7 +110,6 @@ def create_app(config=None, client=None):
             access_key = data.get("accessKey")
             secret_key = data.get("secretKey")
 
-            # Use boto3 to validate credentials and list Kinesis streams
             global_boto3_session = boto3.Session(
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
@@ -105,7 +117,6 @@ def create_app(config=None, client=None):
             )
             kinesis_client = global_boto3_session.client('kinesis')
             
-            # List Kinesis streams
             response = kinesis_client.list_streams()
             stream_names = response.get('StreamNames', [])
 
@@ -125,8 +136,6 @@ def create_app(config=None, client=None):
             data = request.json
             stream_name = data.get("streamName")
 
-            # Use boto3 session to access Kinesis 
-            # Using kinesis client to get specific shard interator
             kinesis_client = global_boto3_session.client('kinesis')
             shard_iterator = kinesis_client.get_shard_iterator(
                 StreamName=stream_name,
@@ -154,7 +163,6 @@ def create_app(config=None, client=None):
                     client.command("SET schema_inference_make_columns_nullable = 0;")
                     client.command("SET input_format_null_as_default = 0;")
                     res = client.query(f"DESC format(JSONEachRow, '{record_data}');")
-                    # jsonify({"1": res.result_rows})
 
                     schemaArray = []
                     for row in res.result_rows:
@@ -186,7 +194,6 @@ def create_app(config=None, client=None):
             database_name = data.get('databaseName', 'default')
             schema = data["schema"]
 
-            # Validate schema
             if not isinstance(schema, list) or len(schema) == 0:
                 return jsonify({"error": "Invalid schema format"}), 400
 
@@ -208,7 +215,6 @@ def create_app(config=None, client=None):
 
             client.command(query)
             
-            # getting table_id from clickhouse
             def get_table_id(table_name):
                 res = client.query(f"""
                     SELECT uuid
@@ -218,8 +224,6 @@ def create_app(config=None, client=None):
                     """)
                 return res.first_row[0]
             
-            
-            # Adding table_id + stream_arn to dynamodb
             def add_table_stream_dynamodb(stream_arn, ch_table_id):
                 dynamo_client = global_boto3_session.resource('dynamodb')
                 dynamo_table = dynamo_client.Table('tables_streams')
@@ -228,6 +232,7 @@ def create_app(config=None, client=None):
                     KeyConditionExpression=Key('stream_id').eq(stream_arn)
                 )
                 
+                # TODO: this delete if exists is not working
                 if len(response['Items']) == 1:
                     # If the item exists, delete it first
                     dynamo_table.delete_item(
@@ -245,16 +250,13 @@ def create_app(config=None, client=None):
                     }
                 )
 
-            # Get stream ARN
             kinesis_client = global_boto3_session.client('kinesis')
             stream_description = kinesis_client.describe_stream(StreamName=stream_name)
             stream_arn = stream_description['StreamDescription']['StreamARN']
 
-            # Add table_id and stream_arn to dynamodb
             table_id = get_table_id(table_name)
             add_table_stream_dynamodb(stream_arn, table_id)
 
-            # print('create table query: ', query)
             return jsonify({
                 "success": True,
                 "create_table_query": query,
@@ -264,27 +266,6 @@ def create_app(config=None, client=None):
             })
         except Exception as e:
             return jsonify({"error": str(e)}), 400
-        
-    @app.route("/api/select-query", methods=["POST"])
-    def select_query():
-        try:
-            query_string = request.json.get('query')
-            result = client.query(query_string)
-            data = [*result.named_results()]
-            print(data)
-            response = {
-                "metadata": {
-                    "query": query_string,
-                    "row_count": int(result.summary['read_rows']),
-                    "column_names": result.column_names,
-                    "column_types": [t.base_type for t in result.column_types],
-                },
-                "data": data
-            }
-            return jsonify(response)
-        except Exception as e:
-            return jsonify({ 'Error in select_query': str(e)}), 400
-
 
     return app
 
