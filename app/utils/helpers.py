@@ -31,43 +31,6 @@ def create_paginated_query(query_string, page_size, offset):
     return paginated_query
 
 
-# kinesis-sample route 
-def connect_to_stream(client, kinesis_client, shard_iterator):
-    """
-    Trying for 10 seconds to grab a kinesis stream record using kinesis client
-    If event record exists, decode to JSON
-    Use event record and clickhouse client to infer schema
-    Return same event and inferrerd schema
-    """
-    seconds_to_try = 5
-    times_per_second = 3
-    count = 0
-    while count < times_per_second * seconds_to_try:
-        records = kinesis_client.get_records(
-          ShardIterator=shard_iterator,
-          Limit=1
-        )
-        print('Backend route Records: ', records)
-
-        if records['Records']:
-            record_data = records['Records'][0]['Data'].decode('utf-8')
-            
-            client.command("SET schema_inference_make_columns_nullable = 0;")
-            client.command("SET input_format_null_as_default = 0;")
-            res = client.query(f"DESC format(JSONEachRow, '{record_data}');")
-
-            schemaArray = []
-            for row in res.result_rows:
-                schema = {
-                    'name': row[0],
-                    'type': row[1]
-                }
-                schemaArray.append(schema)
-
-            return jsonify({"sampleEvent": json.loads(record_data), "inferredSchema": schemaArray})
-
-        count += 1
-        sleep(1/times_per_second)
 
 
 # create-table route
@@ -80,13 +43,6 @@ def destructure_create_table_request(request):
     schema = data["schema"]
     return stream_name, table_name, database_name, schema
 
-def validate_schema(schema):
-    if not isinstance(schema, list) or len(schema) == 0:
-        return jsonify({"Schema Error": "Invalid schema format"}), 400
-
-    for col in schema:
-        if not isinstance(col, dict) or "name" not in col or "type" not in col:
-            return jsonify({"Schema Error": "Invalid schema format"}), 400
 
 def get_stream_arn(global_boto3_session, stream_name):
     kinesis_client = global_boto3_session.client('kinesis')
