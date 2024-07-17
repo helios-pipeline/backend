@@ -6,6 +6,7 @@ from time import sleep
 import uuid
 import boto3
 from boto3.dynamodb.conditions import Key
+from flask import Flask, send_from_directory
 
 import clickhouse_connect
 from dotenv import load_dotenv
@@ -41,7 +42,15 @@ def create_app(config=None, client=None):
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
 
-    @app.route("/")
+    app = Flask(__name__, static_folder='./frontend/dist')
+
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve(path):
+        if path != "" and os.path.exists(app.static_folder + '/' + path):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return send_from_directory(app.static_folder, 'index.html')
     @app.route("/api/databases", methods=["GET"])
     def get_databases():
         try:
