@@ -1,8 +1,22 @@
-import json
-from time import sleep
 import boto3
-from boto3.dynamodb.conditions import Key
-from flask import Blueprint, jsonify, request, current_app
+from flask import (
+    Blueprint, 
+    jsonify, 
+    request, 
+    current_app
+    )
+from app.utils.helpers import (
+    get_tables_in_db, 
+    get_db_names, 
+    get_table_id, 
+    add_table_stream_dynamodb, 
+    create_paginated_query, 
+    destructure_query_request, 
+    connect_to_stream, 
+    destructure_create_table_request,
+    get_stream_arn,
+    validate_schema
+    )
 
 api = Blueprint('main', __name__)
 global_boto3_session = None
@@ -12,18 +26,6 @@ def get_databases():
     try:
         client = current_app.get_ch_client()
         print(f"in database route, client, from current_app.get_ch_client(), is: {client}")
-        def get_db_names(client):
-            return [
-                db["name"] for db in client.query("SHOW DATABASES").named_results()
-            ]
-
-        def get_tables_in_db(client, db_name):
-            return [
-                table["name"]
-                for table in client.query(
-                    f"SHOW TABLES FROM {db_name}"
-                ).named_results()
-            ]
 
         db_table_map = {}
         for db in get_db_names(client):
@@ -31,20 +33,16 @@ def get_databases():
 
         return jsonify(db_table_map)
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"Databases Route Error": str(e)}), 400
     
 @api.route("/query", methods=["POST"])
 def query():
     try:
         client = current_app.get_ch_client()
         print(f"in query route, client, from current_app.get_ch_client(), is: {client}")
-        query_string = request.json.get("query")
-        page = int(request.json.get("page", 1))
-        page_size = int(request.json.get("pageSize", 10))
-
-        offset = (page - 1) * page_size
-
-        paginated_query = f"{query_string} LIMIT {page_size} OFFSET {offset}"
+        
+        query_string, page, page_size, offset = destructure_query_request(request)
+        paginated_query = create_paginated_query(query_string, page_size, offset)
 
         result = client.query(paginated_query)
 
@@ -67,7 +65,7 @@ def query():
         }
         return jsonify(response)
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"Query Route Error": str(e)}), 400
 
 @api.route("/authenticate", methods=["POST"])
 def authenticate():
@@ -93,7 +91,7 @@ def authenticate():
             "streamNames": stream_names
         })
     except Exception as e:
-        return jsonify({"Authentication Error": str(e)}), 400
+        return jsonify({"Authentication Route Error": str(e)}), 400
 
 @api.route("/kinesis-sample", methods=["POST"])
 def kinesis_sample():
@@ -112,40 +110,10 @@ def kinesis_sample():
             ShardIteratorType='LATEST'
         )['ShardIterator']
         
-        # Trying for 10 seconds to grab a kinesis stream record using kinesis client
-        # If event record exists, decode to JSON
-        # Use event record and clickhouse client to infer schema
-        # Return same event and inferrerd schema
-        seconds_to_try = 5
-        times_per_second = 3
-        count = 0
-        while count < times_per_second * seconds_to_try:
-            records = kinesis_client.get_records(
-              ShardIterator=shard_iterator,
-              Limit=1
-            )
-            print('Backend route Records: ', records)
+        
+        connect_to_stream(client, kinesis_client, shard_iterator)
 
-            if records['Records']:
-                record_data = records['Records'][0]['Data'].decode('utf-8')
-                
-                client.command("SET schema_inference_make_columns_nullable = 0;")
-                client.command("SET input_format_null_as_default = 0;")
-                res = client.query(f"DESC format(JSONEachRow, '{record_data}');")
-
-                schemaArray = []
-                for row in res.result_rows:
-                    schema = {
-                        'name': row[0],
-                        'type': row[1]
-                    }
-                    schemaArray.append(schema)
-
-                return jsonify({"sampleEvent": json.loads(record_data), "inferredSchema": schemaArray})
-
-            count += 1
-            sleep(1/times_per_second)
-        return jsonify({"Unsucessful": "could not find any records"})
+        return jsonify({"Unsuccessful": "could not find any records"})
       
     except Exception as e:
         return jsonify({"Kinesis Sample Route Error": str(e)}), 400
@@ -154,22 +122,13 @@ def kinesis_sample():
 def create_table():
     try:
         client = current_app.get_ch_client()
+
         if global_boto3_session is None:
             return jsonify({'Authentication Error': 'User had not been authenticated'}), 401
         
-        data = request.json
-        
-        stream_name = data["streamName"]
-        table_name = data["tableName"]
-        database_name = data.get('databaseName', 'default')
-        schema = data["schema"]
+        stream_name, table_name, database_name, schema = destructure_create_table_request(request)
 
-        if not isinstance(schema, list) or len(schema) == 0:
-            return jsonify({"error": "Invalid schema format"}), 400
-
-        for col in schema:
-            if not isinstance(col, dict) or "name" not in col or "type" not in col:
-                return jsonify({"error": "Invalid schema format"}), 400
+        validate_schema(schema)
         
         columns = ", ".join([f'{col["name"]} {col["type"]}' for col in schema])
 
@@ -180,55 +139,15 @@ def create_table():
                               f" PRIMARY KEY {schema[0]["name"]}"
         
         query = create_table_query.strip()
-
         print('create table query: ', query)
-
         client.command(query)
 
-        # Add Lambda Connection here to add a trigger for the Kinesis stream
+        # TODO: Add Lambda Connection here to add a trigger for the Kinesis stream
         # Don't do it within other routes as it will stream events too early causing and error
         
-        def get_table_id(table_name):
-            res = client.query(f"""
-                SELECT uuid
-                FROM system.tables
-                WHERE database = 'default'
-                AND name = '{table_name}'
-                """)
-            return res.first_row[0]
-        
-        def add_table_stream_dynamodb(stream_arn, ch_table_id):
-            dynamo_client = global_boto3_session.resource('dynamodb')
-            dynamo_table = dynamo_client.Table('tables_streams')
-
-            response = dynamo_table.query(
-                KeyConditionExpression=Key('stream_id').eq(stream_arn)
-            )
-            
-            # TODO: this delete if exists is not working
-            if len(response['Items']) == 1:
-                # If the item exists, delete it first
-                dynamo_table.delete_item(
-                    Key={
-                        "stream_id": stream_arn,
-                        "table_id": response['Items'][0]['table_id']
-                    }
-                )
-                print(f"Existing entry for stream_id {stream_arn} deleted.")
-
-            dynamo_table.put_item(
-                Item={
-                    "stream_id": stream_arn,
-                    "table_id": str(ch_table_id)
-                }
-            )
-
-        kinesis_client = global_boto3_session.client('kinesis')
-        stream_description = kinesis_client.describe_stream(StreamName=stream_name)
-        stream_arn = stream_description['StreamDescription']['StreamARN']
-
-        table_id = get_table_id(table_name)
-        add_table_stream_dynamodb(stream_arn, table_id)
+        stream_arn = get_stream_arn(global_boto3_session, stream_name)
+        table_id = get_table_id(client, table_name)
+        add_table_stream_dynamodb(global_boto3_session, stream_arn, table_id)
 
         return jsonify({
             "success": True,
@@ -238,4 +157,4 @@ def create_table():
             "streamARN": stream_arn
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"Create Table Route Error": str(e)}), 400
