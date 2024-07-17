@@ -21,9 +21,20 @@ def get_tables_in_db(client, db_name):
 # query route
 def destructure_query_request(request):
     query_string = request.json.get("query")
-    page = int(request.json.get("page", 1))
-    page_size = int(request.json.get("pageSize", 10))
-    offset = (page - 1) * page_size
+    print(f"request to destructure: {request.json}")
+    # page = request.json.get("page")
+    # Trying to get page parameter
+    # If page is None, keep it the same
+    # If page is not None ie '3', convert to int
+    page = request.json.get("page")
+    page_size = request.json.get('pageSize')
+    offset = None
+    print('abc2', page, page_size)
+    if page and page_size:
+        page = int(page)
+        page_size = int(page_size)
+        offset = (page - 1) * page_size
+    
     return query_string, page, page_size, offset
 
 def create_paginated_query(query_string, page_size, offset):
