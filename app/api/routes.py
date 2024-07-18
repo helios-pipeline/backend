@@ -1,23 +1,16 @@
-from math import ceil
 import boto3
 from time import sleep
 import json
-from flask import (
-    Blueprint, 
-    jsonify, 
-    request, 
-    current_app
-    )
+from flask import Blueprint, jsonify, request, current_app
 from app.utils.helpers import (
-    get_tables_in_db, 
-    get_db_names, 
-    get_table_id, 
-    add_table_stream_dynamodb, 
-    create_paginated_query, 
-    destructure_query_request, 
+    get_tables_in_db,
+    get_db_names,
+    get_table_id,
+    add_table_stream_dynamodb,
     destructure_create_table_request,
     get_stream_arn,
-    )
+    is_sql_injection,
+)
 
 api = Blueprint("main", __name__)
 global_boto3_session = None
@@ -38,7 +31,9 @@ def get_databases():
         return jsonify(db_table_map)
     except Exception as e:
         return jsonify({"Databases Route Error": str(e)}), 400
-@api.route('/query', methods=["POST"])
+
+
+@api.route("/query", methods=["POST"])
 def query():
     try:
         client = current_app.get_ch_client()
@@ -58,7 +53,6 @@ def query():
         return jsonify(response)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-
 
 
 @api.route("/authenticate", methods=["POST"])
@@ -101,9 +95,9 @@ def kinesis_sample():
         kinesis_client = global_boto3_session.client("kinesis")
         shard_iterator = kinesis_client.get_shard_iterator(
             StreamName=stream_name,
-            ShardId='shardId-000000000000',  # Assume single shard for simplicity
-            ShardIteratorType='LATEST'
-        )['ShardIterator']
+            ShardId="shardId-000000000000",  # Assume single shard for simplicity
+            ShardIteratorType="LATEST",
+        )["ShardIterator"]
 
         """
         Trying for 10 seconds to grab a kinesis stream record using kinesis client
@@ -115,15 +109,12 @@ def kinesis_sample():
         times_per_second = 3
         count = 0
         while count < times_per_second * seconds_to_try:
-            records = kinesis_client.get_records(
-            ShardIterator=shard_iterator,
-            Limit=1
-            )
-            print('Backend route Records: ', records)
+            records = kinesis_client.get_records(ShardIterator=shard_iterator, Limit=1)
+            print("Backend route Records: ", records)
 
-            if records['Records']:
-                record_data = records['Records'][0]['Data'].decode('utf-8')
-                
+            if records["Records"]:
+                record_data = records["Records"][0]["Data"].decode("utf-8")
+
                 client.command("SET schema_inference_make_columns_nullable = 0;")
                 client.command("SET input_format_null_as_default = 0;")
                 res = client.query(f"DESC format(JSONEachRow, '{record_data}');")
@@ -165,14 +156,14 @@ def create_table():
         )
 
         # validate_schema(schema)
-        
+
         if not isinstance(schema, list) or len(schema) == 0:
             return jsonify({"Schema Error": "Invalid schema format"}), 400
 
         for col in schema:
             if not isinstance(col, dict) or "name" not in col or "type" not in col:
                 return jsonify({"Schema Error": "Invalid schema format"}), 400
-        
+
         columns = ", ".join([f'{col["name"]} {col["type"]}' for col in schema])
 
         # Primary key is set to first column as default
@@ -198,13 +189,13 @@ def create_table():
         table_id = get_table_id(client, table_name)
         add_table_stream_dynamodb(global_boto3_session, stream_arn, table_id)
 
-        lambda_client = global_boto3_session.client('lambda')
+        lambda_client = global_boto3_session.client("lambda")
 
         lambda_client.create_event_source_mapping(
             EventSourceArn=stream_arn,
-            FunctionName='kinesis-to-clickhouse-dev',
-            StartingPosition='LATEST',
-            BatchSize=3
+            FunctionName="kinesis-to-clickhouse-dev",
+            StartingPosition="LATEST",
+            BatchSize=3,
         )
 
         """
@@ -218,12 +209,14 @@ def create_table():
         - if dynamo exists, delete
         """
 
-        return jsonify({
-            "success": True,
-            "create_table_query": query,
-            "message": "Table created in Clickhouse. Lambda trigger added. Mapping added to dynamo",
-            "tableUUID": table_id,
-            "streamARN": stream_arn
-        })
+        return jsonify(
+            {
+                "success": True,
+                "create_table_query": query,
+                "message": "Table created in Clickhouse. Lambda trigger added. Mapping added to dynamo",
+                "tableUUID": table_id,
+                "streamARN": stream_arn,
+            }
+        )
     except Exception as e:
         return jsonify({"Create Table Route Error": str(e)}), 400

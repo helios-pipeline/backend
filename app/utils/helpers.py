@@ -24,22 +24,20 @@ def destructure_query_request(request):
     # If page is None, keep it the same
     # If page is not None ie '3', convert to int
     page = request.json.get("page")
-    page_size = request.json.get('pageSize')
+    page_size = request.json.get("pageSize")
     offset = None
-    print('abc2', page, page_size)
+    print("abc2", page, page_size)
     if page and page_size:
         page = int(page)
         page_size = int(page_size)
         offset = (page - 1) * page_size
-    
+
     return query_string, page, page_size, offset
 
 
 def create_paginated_query(query_string, page_size, offset):
     paginated_query = f"{query_string} LIMIT {page_size} OFFSET {offset}"
     return paginated_query
-
-
 
 
 # create-table route
@@ -52,7 +50,6 @@ def destructure_create_table_request(request):
     database_name = data.get("databaseName", "default")
     schema = data["schema"]
     return stream_name, table_name, database_name, schema
-
 
 
 def is_sql_injection(query, create_table=False):
@@ -71,7 +68,7 @@ def is_sql_injection(query, create_table=False):
     ]
 
     if create_table:
-        dangerous_keywords.append(';')
+        dangerous_keywords.append(";")
 
     # Create a regex pattern
     pattern = (
