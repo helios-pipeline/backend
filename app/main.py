@@ -2,7 +2,7 @@ import logging
 import os
 import clickhouse_connect
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from app.api.routes import api
 from flask import g
@@ -10,15 +10,23 @@ from flask import g
 
 def create_app(config=None, client=None):
     print(f"Creating app with config: {config}")
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='../dist')
     CORS(app)
+    
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve(path):
+        if path != "" and os.path.exists(app.static_folder + '/' + path):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return send_from_directory(app.static_folder, 'index.html')
 
     load_dotenv()
 
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
     
-    app.config["CH_HOST"] = os.getenv("CH_HOST", "ec2-13-57-48-113.us-west-1.compute.amazonaws.com")
+    app.config["CH_HOST"] = os.getenv("CH_HOST", "localhost")
     app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8123))
     app.config["CH_USER"] = os.getenv("CH_USER", "default")
     app.config["CH_PASSWORD"] = os.getenv("CH_PASSWORD", "")
@@ -26,6 +34,8 @@ def create_app(config=None, client=None):
     if config:
         logger.debug(f"Updating config: {config}")
         app.config.update(config)
+
+
 
     app.register_blueprint(api, url_prefix='/api')
 
