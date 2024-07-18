@@ -10,6 +10,7 @@ start-db = "scripts:start_db"
 start-db-mac = "scripts:start_db_mac"
 build-image = "scripts:build_image"
 build-image-mac = "scripts:build_image_mac"
+build-flask-image = "scripts:build_flask_image"
 dev = "scripts:run_dev"
 generate = "scripts:generate_data"
 

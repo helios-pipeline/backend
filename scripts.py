@@ -19,6 +19,12 @@ def build_image():
     sys.exit(result.returncode)
 
 
+def build_flask_image():
+    print('test')
+    result = subprocess.run(["sh", "scripts/build-flask-image.sh"], check=True)
+    sys.exit(result.returncode)
+
+
 def build_image_mac():
     result = subprocess.run(["sh", "database/scripts/build-image-mac.sh"], check=True)
     sys.exit(result.returncode)
