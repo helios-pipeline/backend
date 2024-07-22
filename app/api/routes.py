@@ -17,6 +17,7 @@ from app.utils.helpers import (
     destructure_query_request, 
     destructure_create_table_request,
     get_stream_arn,
+    is_sql_injection,
     )
 
 api = Blueprint('main', __name__)
@@ -172,6 +173,9 @@ def create_table():
         
         query = create_table_query.strip()
         print('create table query: ', query)
+        if is_sql_injection(query, True):
+            return jsonify({"Error": "Possible dangerous query operation"})
+
         client.command(query)
 
         # TODO: Add Lambda Connection here to add a trigger for the Kinesis stream
