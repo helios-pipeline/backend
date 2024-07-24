@@ -13,8 +13,6 @@ from app.utils.helpers import (
     get_db_names, 
     get_table_id, 
     add_table_stream_dynamodb, 
-    create_paginated_query, 
-    destructure_query_request, 
     destructure_create_table_request,
     get_stream_arn,
     is_sql_injection,
@@ -27,7 +25,6 @@ global_boto3_session = None
 def get_databases():
     try:
         client = current_app.get_ch_client()
-        print(f"in database route, client, from current_app.get_ch_client(), is: {client}")
 
         db_table_map = {}
         for db in get_db_names(client):
@@ -94,6 +91,9 @@ def kinesis_sample():
         data = request.json
         stream_name = data.get("streamName")
 
+        if not stream_name:
+            return jsonify({'error': 'streamName is required'}), 400
+
         kinesis_client = global_boto3_session.client('kinesis')
         shard_iterator = kinesis_client.get_shard_iterator(
             StreamName=stream_name,
@@ -115,7 +115,6 @@ def kinesis_sample():
             ShardIterator=shard_iterator,
             Limit=1
             )
-            print('Backend route Records: ', records)
 
             if records['Records']:
                 record_data = records['Records'][0]['Data'].decode('utf-8')
@@ -137,8 +136,6 @@ def kinesis_sample():
             count += 1
             sleep(1/times_per_second)
         
-        # connected = connect_to_stream(client, kinesis_client, shard_iterator)
-
         return jsonify({"Unsuccessful": "could not find any records"})
       
     except Exception as e:
@@ -154,8 +151,7 @@ def create_table():
         
         stream_name, table_name, database_name, schema = destructure_create_table_request(request)
 
-        # validate_schema(schema)
-        
+        # Validating the schema
         if not isinstance(schema, list) or len(schema) == 0:
             return jsonify({"Schema Error": "Invalid schema format"}), 400
 
@@ -172,14 +168,11 @@ def create_table():
                               f" PRIMARY KEY {schema[0]["name"]}"
         
         query = create_table_query.strip()
-        print('create table query: ', query)
+
         if is_sql_injection(query, True):
             return jsonify({"Error": "Possible dangerous query operation"})
 
         client.command(query)
-
-        # TODO: Add Lambda Connection here to add a trigger for the Kinesis stream
-        # Don't do it within other routes as it will stream events too early causing and error
         
         stream_arn = get_stream_arn(global_boto3_session, stream_name)
         table_id = get_table_id(client, table_name)
@@ -193,17 +186,6 @@ def create_table():
             StartingPosition='LATEST',
             BatchSize=3
         )
-
-        """
-        - create table abc
-        - add to dynamo
-        - add lambda
-
-        TODO:
-        Exception
-        - if table exists and is empty, delete
-        - if dynamo exists, delete
-        """
 
         return jsonify({
             "success": True,
