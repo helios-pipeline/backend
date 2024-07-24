@@ -1,4 +1,5 @@
 import json
+import re
 from flask import jsonify
 from time import sleep
 from boto3.dynamodb.conditions import Key
@@ -69,7 +70,34 @@ def get_table_id(client, table_name):
         AND name = '{table_name}'
         """)
     return res.first_row[0]
-        
+
+def is_sql_injection(query, create_table=False):
+    # List of dangerous SQL keywords
+    dangerous_keywords = [
+        "DROP",
+        "DELETE",
+        "TRUNCATE",
+        "ALTER",
+        "INSERT",
+        "EXEC",
+        "EXECUTE",
+        "UPDATE",
+        "UNION",
+        "--",
+    ]
+
+    if create_table:
+        dangerous_keywords.append(";")
+
+    # Create a regex pattern
+    pattern = (
+        r"\b(" + "|".join(re.escape(keyword) for keyword in dangerous_keywords) + r")\b"
+    )
+
+    # Check if any of the dangerous keywords are in the query
+    if re.search(pattern, query, re.IGNORECASE):
+        return True
+    return False
 
 def add_table_stream_dynamodb(session, stream_arn, ch_table_id):
     dynamo_client = session.resource('dynamodb')
