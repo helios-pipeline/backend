@@ -2,6 +2,7 @@ from math import ceil
 import boto3
 from time import sleep
 import json
+from datetime import datetime
 from flask import (
     Blueprint, 
     jsonify, 
@@ -9,6 +10,7 @@ from flask import (
     current_app
     )
 from app.utils.helpers import (
+    get_table_info,
     get_tables_in_db, 
     get_db_names, 
     get_table_id, 
@@ -16,6 +18,7 @@ from app.utils.helpers import (
     destructure_create_table_request,
     get_stream_arn,
     is_sql_injection,
+    parse_source_arn,
     )
 
 api = Blueprint('main', __name__)
@@ -33,6 +36,7 @@ def get_databases():
         return jsonify(db_table_map)
     except Exception as e:
         return jsonify({"Databases Route Error": str(e)}), 400
+    
 @api.route('/query', methods=["POST"])
 def query():
     try:
@@ -189,10 +193,43 @@ def create_table():
 
         return jsonify({
             "success": True,
-            "create_table_query": query,
+            "create_table_query": query, # TODO: return JS version ie createTableQuery
             "message": "Table created in Clickhouse. Lambda trigger added. Mapping added to dynamo",
             "tableUUID": table_id,
             "streamARN": stream_arn
         })
     except Exception as e:
         return jsonify({"Create Table Route Error": str(e)}), 400
+
+
+@api.route('/sources', methods=['GET'])
+def view_sources():
+    client = current_app.get_ch_client()
+    global global_boto3_session
+
+    global_boto3_session = boto3.Session(
+        profile_name='capstone-team4', # TODO: use env variables
+        region_name='us-west-1' # TODO: use env variables
+    )
+
+    try:
+        dynamo_client = global_boto3_session.resource("dynamodb")
+        dynamo_table = dynamo_client.Table("stream_table_map") # TODO: dont hardcode this table name
+        response = dynamo_table.scan()
+        items = response['Items']
+        
+        data_sources = []
+        for item in items:
+            stream_type, stream_name = parse_source_arn(item['stream_id'])
+            table_name, created_on = get_table_info(client, item['table_id'])
+            created_on = f"{created_on:%m-%d-%Y}"
+            data_sources.append({
+                'streamName': stream_name,
+                'streamType': stream_type,
+                'tableName': table_name,
+                'createdOn': created_on
+            })
+
+        return jsonify(data_sources)
+    except Exception as e:
+        return jsonify({"Sources Route Error": str(e)}), 400
