@@ -1,8 +1,9 @@
 import json
 import re
-from flask import jsonify
 from time import sleep
+
 from boto3.dynamodb.conditions import Key
+from flask import jsonify
 
 
 # get-databases route
@@ -74,7 +75,6 @@ def get_table_id(client, table_name):
 
 
 def get_table_info(client, table_id):
-    table_id = "55f071e3-d5b3-49f9-acbc-f43781d73904"  # TESTING
     res = client.query(
         f"""
         SELECT name, metadata_modification_time
