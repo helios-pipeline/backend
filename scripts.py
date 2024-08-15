@@ -3,19 +3,19 @@ import sys
 
 
 def start_db():
-    result = subprocess.run(["sh", "database/scripts/clickhouse-setup.sh"], check=True)
+    result = subprocess.run(["sh", "scripts/development/clickhouse-setup.sh"], check=True)
     sys.exit(result.returncode)
 
 
 def start_db_mac():
     result = subprocess.run(
-        ["sh", "database/scripts/clickhouse-setup-mac.sh"], check=True
+        ["sh", "scripts/development/clickhouse-setup-mac.sh"], check=True
     )
     sys.exit(result.returncode)
 
 
 def build_image():
-    result = subprocess.run(["sh", "database/scripts/build-image.sh"], check=True)
+    result = subprocess.run(["sh", "scripts/development/build-image.sh"], check=True)
     sys.exit(result.returncode)
 
 
@@ -26,7 +26,7 @@ def build_flask_image():
 
 
 def build_image_mac():
-    result = subprocess.run(["sh", "database/scripts/build-image-mac.sh"], check=True)
+    result = subprocess.run(["sh", "scripts/development/build-image-mac.sh"], check=True)
     sys.exit(result.returncode)
 
 
@@ -36,6 +36,6 @@ def run_dev():
 
 
 def generate_data():
-    result = subprocess.run(["python3", "generate_data.py"], check=True)
+    result = subprocess.run(["python3", "generate_data2.py"], check=True)
     sys.exit(result.returncode)
 

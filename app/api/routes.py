@@ -42,7 +42,7 @@ def query():
     try:
         client = current_app.get_ch_client()
         query_string = request.json.get("query")
-        result = client.query(query_string)  # returns a QueryReult Object
+        result = client.query(query_string)  
 
         data = [*result.named_results()]
         response = {
@@ -101,7 +101,7 @@ def kinesis_sample():
         kinesis_client = global_boto3_session.client('kinesis')
         shard_iterator = kinesis_client.get_shard_iterator(
             StreamName=stream_name,
-            ShardId='shardId-000000000000',  # Assume single shard for simplicity
+            ShardId='shardId-000000000000',
             ShardIteratorType='LATEST'
         )['ShardIterator']
 
@@ -144,6 +144,7 @@ def kinesis_sample():
       
     except Exception as e:
         return jsonify({"Kinesis Sample Route Error": str(e)}), 400
+    
 
 @api.route("/create-table", methods=["POST"])
 def create_table():
@@ -155,7 +156,6 @@ def create_table():
         
         stream_name, table_name, database_name, schema = destructure_create_table_request(request)
 
-        # Validating the schema
         if not isinstance(schema, list) or len(schema) == 0:
             return jsonify({"Schema Error": "Invalid schema format"}), 400
 
@@ -165,7 +165,6 @@ def create_table():
         
         columns = ", ".join([f'{col["name"]} {col["type"]}' for col in schema])
 
-        # Primary key is set to first column as default
         create_table_query = f"CREATE TABLE {database_name}.{table_name} "\
                               f"({columns}"\
                               f") ENGINE = MergeTree()"\
@@ -193,7 +192,7 @@ def create_table():
 
         return jsonify({
             "success": True,
-            "create_table_query": query, # TODO: return JS version ie createTableQuery
+            "createTableQuery": query,
             "message": "Table created in Clickhouse. Lambda trigger added. Mapping added to dynamo",
             "tableUUID": table_id,
             "streamARN": stream_arn
@@ -207,14 +206,9 @@ def view_sources():
     client = current_app.get_ch_client()
     global global_boto3_session
 
-    global_boto3_session = boto3.Session(
-        profile_name='capstone-team4', # TODO: use env variables
-        region_name='us-west-1' # TODO: use env variables
-    )
-
     try:
         dynamo_client = global_boto3_session.resource("dynamodb")
-        dynamo_table = dynamo_client.Table("stream_table_map") # TODO: dont hardcode this table name
+        dynamo_table = dynamo_client.Table("stream_table_map")
         response = dynamo_table.scan()
         items = response['Items']
         

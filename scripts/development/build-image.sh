@@ -1,8 +1,8 @@
 #!/bin/bash
 
-. database/scripts/global-vars.sh
+. scripts/development/global-vars.sh
 
-sh database/scripts/kill-docker.sh
+sh scripts/development/kill-docker.sh
 
 docker buildx build --platform=linux/amd64 -t helios-clickhouse-amd database/.
 docker login

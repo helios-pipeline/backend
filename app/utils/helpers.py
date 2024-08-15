@@ -21,15 +21,10 @@ def get_tables_in_db(client, db_name):
 # query route
 def destructure_query_request(request):
     query_string = request.json.get("query")
-    print(f"request to destructure: {request.json}")
-    # page = request.json.get("page")
-    # Trying to get page parameter
-    # If page is None, keep it the same
-    # If page is not None ie '3', convert to int
     page = request.json.get("page")
     page_size = request.json.get("pageSize")
     offset = None
-    print("abc2", page, page_size)
+    
     if page and page_size:
         page = int(page)
         page_size = int(page_size)
@@ -44,8 +39,6 @@ def create_paginated_query(query_string, page_size, offset):
 
 
 # create-table route
-
-
 def destructure_create_table_request(request):
     data = request.json
     stream_name = data["streamName"]
@@ -104,7 +97,6 @@ def parse_source_arn_name(stream_type, stream_id):
 
 
 def is_sql_injection(query, create_table=False):
-    # List of dangerous SQL keywords
     dangerous_keywords = [
         "DROP",
         "DELETE",
@@ -133,14 +125,13 @@ def is_sql_injection(query, create_table=False):
 def add_table_stream_dynamodb(session, stream_arn, ch_table_id):
     dynamo_client = session.resource("dynamodb")
     dynamo_table = dynamo_client.Table(
-        "streams_tables_map"
-    )  # TODO: dont hardcode this table name
+        "stream_table_map"
+    )
 
     response = dynamo_table.query(
         KeyConditionExpression=Key("stream_id").eq(stream_arn)
     )
 
-    # TODO: this delete if exists is not working
     if len(response["Items"]) == 1:
         # If the item exists, delete it first
         dynamo_table.delete_item(
