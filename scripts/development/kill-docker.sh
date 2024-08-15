@@ -1,5 +1,5 @@
 #!/bin/bash
-. database/scripts/global-vars.sh
+. scripts/development/global-vars.sh
 
 docker stop helios-clickhouse-container
 docker rm helios-clickhouse-container

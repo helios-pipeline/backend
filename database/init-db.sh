@@ -1,13 +1,11 @@
 #!/bin/bash
 set -e
 
-# Wait for ClickHouse server to be ready
 until clickhouse-client --query "SELECT 1"; do
     echo "Waiting for ClickHouse server to be ready..."
     sleep 1
 done
 
-# Execute ClickHouse queries
 clickhouse-client -n <<-EOSQL
     CREATE TABLE default.events
     (
