@@ -1,119 +1,179 @@
-# Poetry Installation
+# Backend API
 
-- [Install pipx](https://pipx.pypa.io/stable/installation/)
-- Install poetry: `pipx install poetry`
-- Activate virutal env: `poetry shell`
-- Initialize Poetry project: `poetry install`
+## Databases Endpoint
 
-# Flask Route Documentation
+- **URL:** `/api/databases`
+- **Method:** GET
+- **Description:** Retrieves a list of databases and their tables.
+- **Response:**
+  - **Status Code:** 200 OK
+  - **Body:** JSON object with database names as keys and arrays of table names as values.
 
-## Kinesis Connector
+**Example Response:**
 
-### Setup
-- Use the example requests provided and send them to routes in order
-- Make sure to use team4 secret keys
-
-### POST /api/authenticate
-
-#### Authenticates the user with AWS credentials.
-
-Request
 ```json
 {
-  "secretKey": "YOUR_AWS_SECRET_KEY",
-  "accessKey": "YOUR_AWS_ACCESS_KEY"
+  "default": ["events", "users"],
+  "analytics": ["daily_metrics", "user_activity"]
 }
 ```
 
-Response
+## Query Endpoint
+
+- **URL**: /api/query
+- **Method**: POST
+- **Description**: Executes a SQL query on the ClickHouse database.
+- **Request Body**: JSON object with a `query` key containing the SQL query string.
+- **Response**:
+  - **Status Code**: 200 OK
+  - **Body**: JSON object with query results and metadata.
+
+**Example Request:**
+
+```json
+{
+  "query": "SELECT COUNT(*) FROM events WHERE event_type = 'login'"
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "metadata": {
+    "query": "SELECT COUNT(*) FROM events WHERE event_type = 'login'",
+    "row_count": 1,
+    "column_names": ["count"],
+    "column_types": ["UInt64"]
+  },
+  "data": [{ "count": 15234 }]
+}
+```
+
+## Authenticate Endpoint
+
+- **URL**: /api/authenticate
+- **Method**: POST
+- **Description**: Authenticates AWS credentials for Kinesis access.
+- **Request Body**: JSON object with `accessKey` and `secretKey`.
+- **Response**:-
+  - **Status Code**: 200 OK
+  - **Body**: JSON object with authentication status and available stream names.
+
+**Example Request:**
+
+```json
+{
+  "accessKey": "AKIAIOSFODNN7EXAMPLE",
+  "secretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+}
+```
+
+**Example Response:**
+
 ```json
 {
   "authenticated": true,
-  "streamNames": [
-    "MyKinesisDataStream"
-  ]
+  "streamNames": ["user_activity", "purchase_events"]
 }
 ```
 
-### POST /api/kinesis-sample
+## Kinesis Sample Endpoint
 
-#### Retrieves a sample event from the specified Kinesis stream and infers its schema.
+- **URL**: /api/kinesis-sample
+- **Method**: POST
+- **Description**: Retrieves a sample event from a specified Kinesis stream and infers the schema.
+- **Request Body**: JSON object with a `streamName` key.
+- **Response**:-
+  - **Status Code**: 200 OK
+  - **Body**: JSON object with a sample event and inferred schema.
 
-Request
+**Example Request:**
+
 ```json
 {
-  "streamName": "MyKinesisDataStream"
+  "streamName": "user_activity"
 }
 ```
 
-Response
+**Example Response:**
+
 ```json
 {
-  "inferredSchema": [
-    {
-      "name": "user_id",
-      "type": "Nullable(Int64)"
-    },
-    {
-      "name": "session_id",
-      "type": "Nullable(String)"
-    },
-  ],
   "sampleEvent": {
-    "event_timestamp": 1,
-    "event_type": "purchase",
-    "page_url": "https://www.example.com/",
-    "product_id": 84,
-    "session_id": "af29b7b3-b1a4-4562-84ae-3447b1b2bcd8",
-    "user_id": 426
-  }
-}
-```
-
-- `inferredSchema` (array of objects): Inferred schema of the sample event
-  - `name` (string): Column name
-  - `type` (string): ClickHouse data type
-- `sampleEvent` (object): A sample event from the Kinesis stream
-
-### POST /api/create-table
-
-#### Sends request to create table in clickhouse
-
-#### Note
-- TODO: Need to add streamARN and tableUUID to DynamoDB
-
-Request
-```json
-{
-  "streamName": "MyKinesisDataStream",
-  "tableName": "example_table",
-  "schema": [
-      {"name": "column_name_1", "type": "String"},
-      {"name": "column_name_2", "type": "Int32"},
-      {"name": "columns_name_3", "type": "Boolean"}
+    "user_id": "12345",
+    "event_type": "login",
+    "timestamp": "2023-04-15T14:30:00Z"
+  },
+  "inferredSchema": [
+    { "name": "user_id", "type": "String" },
+    { "name": "event_type", "type": "String" },
+    { "name": "timestamp", "type": "DateTime" }
   ]
 }
 ```
 
-- `streamName` (string): Name of the Kinesis stream
-- `tableName` (string): Name for the new ClickHouse table
-- `schema` (array of objects): Schema definition for the table
-  - `name` (string): Column name
-  - `type` (string): ClickHouse data type
+## Create Table Endpoint
 
-Response
+- **URL**: /api/create-table
+- **Method**: POST
+- **Description**: Creates a new table in ClickHouse and sets up a Kinesis stream mapping.
+- **Request Body**: JSON object with table details and schema.
+- **Response**:-
+  - **Status Code**: 200 OK
+  - **Body**: JSON object with creation status and details.
+
+**Example Request:**
+
 ```json
 {
-  "create_table_query": "CREATE TABLE default.example_table(column_name_1 String, column_name_2 Int32, columns_name_3 Boolean) ENGINE = MergeTree() PRIMARY KEY column_name_1",
-  "message": "Table created in ClickHouse. TODO: Insert tableUUID and streamARN into dynamodb",
-  "streamARN": "arn:aws:kinesis:us-west-1:ACCOUNT_ID:stream/MyKinesisDataStream",
-  "success": true,
-  "tableUUID": "e2cc2c0e-2463-4d04-845f-58fa4d7f4df0"
+  "streamName": "user_activity",
+  "tableName": "user_events",
+  "databaseName": "default",
+  "schema": [
+    { "name": "user_id", "type": "String" },
+    { "name": "event_type", "type": "String" },
+    { "name": "timestamp", "type": "DateTime" }
+  ]
 }
 ```
 
-- `create_table_query` (string): The ClickHouse query used to create the table
-- `message` (string): Status message
-- `streamARN` (string): ARN of the Kinesis stream
-- `success` (boolean): Operation status
-- `tableUUID` (string): Unique identifier for the created table
+**Example Response:**
+
+```json
+{
+  "success": true,
+  "createTableQuery": "CREATE TABLE default.user_events (user_id String, event_type String, timestamp DateTime) ENGINE = MergeTree() ORDER BY timestamp",
+  "message": "Table created in Clickhouse. Lambda trigger added. Mapping added to dynamo",
+  "tableUUID": "550e8400-e29b-41d4-a716-446655440000",
+  "streamARN": "arn:aws:kinesis:us-west-2:123456789012:stream/user_activity"
+}
+```
+
+## Sources Endpoint
+
+- **URL**: /api/sources
+- **Method**: GET
+- **Description**: Retrieves a list of all configured data sources (Kinesis streams) and their associated ClickHouse tables.
+- **Response**:
+  - **Status Code**: 200 OK
+  - **Body**: Array of JSON objects, each representing a data source.
+
+**Example Response:**
+
+```json
+[
+  {
+    "streamName": "user_activity",
+    "streamType": "kinesis",
+    "tableName": "user_events",
+    "createdOn": "04-15-2023"
+  },
+  {
+    "streamName": "purchase_events",
+    "streamType": "kinesis",
+    "tableName": "purchases",
+    "createdOn": "04-10-2023"
+  }
+]
+```
