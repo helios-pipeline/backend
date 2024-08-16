@@ -45,10 +45,12 @@ def query():
         result = client.query(query_string)  
 
         data = [*result.named_results()]
+        rows_count = len(data)
+
         response = {
             "metadata": {
                 "query": query_string,
-                "row_count": int(result.summary["read_rows"]),
+                "row_count": rows_count,
                 "column_names": result.column_names,
                 "column_types": [t.base_type for t in result.column_types],
             },
