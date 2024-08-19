@@ -1,6 +1,10 @@
-# Backend API
+## Overview
 
-## Databases Endpoint
+Helios' backend is comprised of a Flask server connected to a ClickHouse database through the ClickhHouse Connect database driver. It utilizes the Amazon Web Service's Software Development Kit (SDK) to communicate with select parts of Helios' infrastructure, including Lambda and DynamoDB.
+
+## Backend API
+
+### Databases Endpoint
 
 - **URL:** `/api/databases`
 - **Method:** GET
@@ -18,7 +22,7 @@
 }
 ```
 
-## Query Endpoint
+### Query Endpoint
 
 - **URL**: /api/query
 - **Method**: POST
@@ -50,7 +54,7 @@
 }
 ```
 
-## Authenticate Endpoint
+### Authenticate Endpoint
 
 - **URL**: /api/authenticate
 - **Method**: POST
@@ -78,7 +82,7 @@
 }
 ```
 
-## Kinesis Sample Endpoint
+### Kinesis Sample Endpoint
 
 - **URL**: /api/kinesis-sample
 - **Method**: POST
@@ -113,7 +117,7 @@
 }
 ```
 
-## Create Table Endpoint
+### Create Table Endpoint
 
 - **URL**: /api/create-table
 - **Method**: POST
@@ -150,7 +154,7 @@
 }
 ```
 
-## Sources Endpoint
+### Sources Endpoint
 
 - **URL**: /api/sources
 - **Method**: GET
