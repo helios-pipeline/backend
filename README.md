@@ -2,6 +2,15 @@
 
 Helios' backend is comprised of a Flask server connected to a ClickHouse database through the ClickhHouse Connect database driver. It utilizes the Amazon Web Service's Software Development Kit (SDK) to communicate with select parts of Helios' infrastructure, including Lambda and DynamoDB.
 
+<details>
+  <summary><strong>⚠️ Warning: Running Locally</strong></summary>
+  <div>
+
+Please note that running this backend application locally is not recommended, as it is designed to work with specific AWS infrastructure. To provision the complete Helios system and utilize this backend effectively, please refer to the [Helios Deploy](https://github.com/helios-pipeline/deploy) documentation.
+
+  </div>
+</details>
+
 ## Backend API
 
 ### Databases Endpoint
