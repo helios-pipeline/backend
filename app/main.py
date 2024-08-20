@@ -30,6 +30,7 @@ def create_app(config=None, client=None):
     app.config["CH_PORT"] = int(os.getenv("CH_PORT", 8123))
     app.config["CH_USER"] = os.getenv("CH_USER", "default")
     app.config["CH_PASSWORD"] = os.getenv("CH_PASSWORD", "")
+    app.config["CHAT_GPT_API_KEY"] = os.getenv("CHAT_GPT_API_KEY", "")
 
     if config:
         logger.debug(f"Updating config: {config}")
