@@ -19,6 +19,7 @@ from app.utils.helpers import (
     get_stream_arn,
     is_sql_injection,
     parse_source_arn,
+    fetch_openai_output,
     )
 
 api = Blueprint('main', __name__)
@@ -229,3 +230,27 @@ def view_sources():
         return jsonify(data_sources)
     except Exception as e:
         return jsonify({"Sources Route Error": str(e)}), 400
+
+@api.route('/api-key', methods=["GET"])
+def get_api_key():
+    api_key = current_app.config.get("CHAT_GPT_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ChatGPT API is not configured"}), 503
+    
+    return jsonify({"api_key": api_key})
+
+@api.route('/api-response', methods=["POST"])
+def view_api_output():
+    api_key = current_app.config.get("CHAT_GPT_API_KEY")
+    try:
+        prompt = request.json.get("prompt")
+        if not prompt:
+            return jsonify({"error": "No prompt provided"}), 400
+        
+        text = fetch_openai_output(prompt, api_key)
+        if text is None:
+            return jsonify({"error": "Failed to get response from OpenAI"}), 500
+
+        return jsonify({"response": text})
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred"}), 500

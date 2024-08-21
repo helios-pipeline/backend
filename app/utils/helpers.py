@@ -4,7 +4,7 @@ from time import sleep
 
 from boto3.dynamodb.conditions import Key
 from flask import jsonify
-
+import requests
 
 # get-databases route
 def get_db_names(client):
@@ -140,3 +140,33 @@ def add_table_stream_dynamodb(session, stream_arn, ch_table_id):
         print(f"Existing entry for stream_id {stream_arn} deleted.")
 
     dynamo_table.put_item(Item={"stream_id": stream_arn, "table_id": str(ch_table_id)})
+
+def fetch_openai_output(prompt, api_key):
+    endpoint = 'https://api.openai.com/v1/chat/completions'
+    headers = {
+        'Authorization': f"Bearer {api_key}",
+        'Content-Type': 'application/json'
+    }
+
+    body = {
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are to take in a table of error data for input. Then provide a precise informative summary of the errors. Please be insightful. No markdown please. No symbols like *, #, etc for formatting. Prefer to keep it short and simple."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "max_tokens": 500,
+        "model": "gpt-4o"
+    }
+
+    try:
+        response = requests.post(endpoint, headers=headers, json=body)
+        data = response.json()
+        return data['choices'][0]['message']['content']
+    except requests.RequestException as error:
+        print(f"An error occurred: {error}")
+        return None
