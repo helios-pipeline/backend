@@ -1,5 +1,6 @@
 from math import ceil
 import boto3
+import asyncio
 from time import sleep
 import json
 from datetime import datetime
@@ -37,7 +38,132 @@ def get_databases():
         return jsonify(db_table_map)
     except Exception as e:
         return jsonify({"Databases Route Error": str(e)}), 400
+"""
+receive from frontend:
+- how many per page (10 for now)
+- offset (page number)
+- query
+
+Input: query, offset, page num
+Output: 1000 rows
+
+Assumption:
+- No overfetching(request from frontend every time press next or prev)
+
+
+
+Examples:
+table has 100,000 rows
+
+request 1: select * from table, {limit: 100}
+request 2: select * from table limit 300
+
+===
+OFFSET EXAMPLES:
+rows_per_page = 10, page_number = 1
+query = SELECT * FROM table OFFSET 0 LIMIT 10
+
+rows_per_page = 10, page_number = 2
+query = SELECT * FROM table OFFSET 10 LIMIT 10
+
+rows_per_page = 10, page_number = 3
+query = SELECT * FROM table OFFSET 20 LIMIT 10
+
+rows_per_page = 10, page_number = 3, query = SELECT * FROM table LIMIT 100
+<logic>
+- extract limit number from original query
+- use that to determine total rows?
+<logic>
+query = SELECT * FROM table OFFSET 20 LIMIT 10
+===
+COUNT QUERY EXAMPLES:
+select * from table limit 100
+
+
+PSEUDOCODE FOR CONSTRUCTING QUERY:
+query_string = request.json.get("query")
+rows_per_page = request.json.get("rowsPerPage")
+offset = (request.json.get("pageNumber") - 1) * rows_per_page
+limit = request.json.get("limit")
+
+- extract limit_number from query string
+  - if no limit, set limit to infinity
+- get query_string_with_no_limit_and_offset
+- query = f"query_string_with_no_limit_and_offset LIMIT {min(limit_number, _)} OFFSET {if offset_number then offset + offset_number else offset}"
+
+-------------
+import re
+
+def extract_limit_and_offset(query):
+    NO_LIMIT = float("inf")
+    limit_match = re.search(r'\bLIMIT\s+(\d+)(?!\s*,)', query, re.IGNORECASE)
+    offset_match = re.search(r'\bOFFSET\s+(\d+)(?!\s*,)', query, re.IGNORECASE)
     
+    limit = int(limit_match.group(1)) if limit_match else NO_LIMIT
+    offset = int(offset_match.group(1)) if offset_match else 0
+    
+    return limit, offset
+
+
+@api.route('/paginate, methods=["POST"]')
+async def paginate():
+  try:
+    client = current_app.get_ch_client()
+    query = request.json.get("query")
+    rows_per_page = request.json.get("rowsPerPage")
+    current_page = request.json.get("pageNumber")
+    offset = (current_page - 1) * rows_per_page
+    
+    query_limit, query_offset = extract_limit_and_offset(query)
+    
+    cleaned_query = re.sub(r'\s+(LIMIT\s+\d+)?\s*(OFFSET\s+\d+)?\s*$', '', query, flags=re.IGNORECASE).strip()
+
+    paginated_query = f"cleaned_query LIMIT {min(rows_per_page, query_limit)} OFFSET {offset + query_offset}"
+    
+    count_query = f"SELECT COUNT(*) FROM ({query})"
+
+    paginated_result = client.query(paginated_query)
+    row_count = client.query(count_query)
+    paginated_result, row_count = await asyncio.gather(
+            client.query(paginated_query),
+            client.query(count_query)
+        )
+
+    total_pages = ceil(row_count / rows_per_page)
+
+    data = [*paginated_result.named_results()]
+
+    return jsonify({
+        "metadata": {
+          "query": query,
+          "columnNames": paginated_result.column_names,
+          "columnTypes": [t.base_type for t in paginated_result.column_types],
+        },
+        "data": data,
+        'pagination': {
+          'totalItems': total_items,
+          'totalPages': total_pages,
+          "nextPage": f"/api/paginate?pageNumber={pageNumber + 1}&rowsPerPage=10",
+          "prevPage": "/api/paginate?pageNumber=1&rowsPerPage=10"
+        }
+    })
+  except Exception as e:
+    return jsonify({"error": str(e)}), 400
+
+    
+FRONTEND EXAMPLE
+await data = axios.post('/api/paginate', {
+  rowsPerPage: 10,
+  query: "SELECT * FROM table",
+  pageNumber: 1,
+})
+
+TODO:
+Branch: feat/server-side-pagination
+
+commit 1
+
+"""
 @api.route('/query', methods=["POST"])
 def query():
     try:
@@ -178,6 +304,7 @@ def create_table():
         if is_sql_injection(query, True):
             return jsonify({"Error": "Possible dangerous query operation"})
 
+        print(query)
         client.command(query)
         
         stream_arn = get_stream_arn(global_boto3_session, stream_name)
